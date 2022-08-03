@@ -8,25 +8,220 @@ window.addEventListener('load', function () {
     Game.init();
 });
 
-class Farmland {
+class Game {
+    static tiles: Array<Tile> = new Array<Tile>();
+    static tilesWidth: number = 3;
+    static tilesHeight: number = 2;
+    static selectedItem: Item | null;
+    static timer: number;
+    static inventory = new Map<PlantItem, number>();
+
+    static infoDomObject: HTMLElement | null;
+
+    static season: Season;
+    static seasonTimer: number;
+    static readonly SEASON_DURATION: number = 600;
+
+    public static init() {
+        let itemsContainer = document.getElementById("itemsContainer");
+        itemsContainer?.appendChild(Game.generateItemsList());
+
+        Game.logDomObject = document.getElementById("logContainer");
+        Game.inventoryDomObject = document.getElementById("inventoryContainer");
+        Game.infoDomObject = document.getElementById("infoContainer");
+
+        Game.generateTiles();
+        Game.drawTiles();
+        Game.season = Season.SUMMER;
+        Game.seasonTimer = Game.SEASON_DURATION;
+
+        window.setInterval(Game.tick, 100);
+    }
+
+    public static tick() {
+        if (Game.seasonTimer-- <= 0) {
+            Game.advanceSeason();
+        }
+        Game.infoDomObject!.innerHTML = `Season: ${Season[Game.season]} (${Game.seasonTimer})`;
+        Game.tiles.forEach(tile => {
+            tile.tick();
+        });
+    }
+
+    public static advanceSeason() {
+        Game.season++;
+        Game.seasonTimer = Game.SEASON_DURATION;
+    }
+
+    public static addToInventory(plantType: PlantItem) {
+        Game.inventory.set(plantType, (Game.inventory.get(plantType) ?? 0) + 1);
+        Game.updateInventoryDisplay();
+    }
+
+    static inventoryDomObject: HTMLElement | null;
+
+    public static updateInventoryDisplay() {
+        Game.inventoryDomObject!.innerHTML = "";
+        for (let entry of Game.inventory.entries()) {
+            Game.inventoryDomObject!.innerHTML += `${entry[0].id}: ${entry[1]}<br />`;
+        }
+    }
+
+    static logDomObject: HTMLElement | null;
+    static logRows: number = 0;
+
+    public static log(s: string) {
+        if (Game.logDomObject != null) {
+            Game.logDomObject.innerHTML += s + "<br />";
+            Game.logRows++;
+        }
+    }
+    
+    private static generateItemsList(): HTMLDivElement {
+        let itemsDiv: HTMLDivElement = document.createElement("div");
+        itemsDiv.style.display = "table";
+        itemsDiv.style.margin = "0 auto";
+        Items.List.forEach(item => {
+            itemsDiv.appendChild(item.domObject);
+        });
+        itemsDiv.appendChild(document.createElement("br"));
+        itemsDiv.appendChild(document.createElement("br"));
+        PlantTypes.List.forEach(plantType => {
+            itemsDiv.appendChild(plantType.domObject);
+            itemsDiv.appendChild(document.createElement("br"));
+        });
+        return itemsDiv;
+    }
+
+    public static onTileClick(tile: Tile): void {
+        tile.onClick(Game.selectedItem);
+    }
+
+    public static generateTiles(): void {
+        for (let y = 0; y < this.tilesHeight; y++) {
+            for (let x = 0; x < this.tilesWidth; x++) {
+                let tile: Tile;
+                if (Math.random() < 0.4) {
+                    tile = new FarmlandTile(y * this.tilesWidth + x)
+                }
+                else {
+                    tile = new StoneTile(y * this.tilesWidth + x)
+                }
+                //tileDiv.appendChild(tile.domObject);
+                Game.tiles.push(tile);
+            }
+            //tileDiv.appendChild(document.createElement("br"));
+        }
+    }
+
+    private static generateTilesDiv(): HTMLDivElement {
+        let tileDiv: HTMLDivElement = document.createElement("div");
+        tileDiv.style.display = "table";
+        tileDiv.style.margin = "0 auto";
+        for (let y = 0; y < this.tilesHeight; y++) {
+            for (let x = 0; x < this.tilesWidth; x++) {
+                tileDiv.appendChild(Game.tiles[y * this.tilesWidth + x].domObject);
+            }
+            tileDiv.appendChild(document.createElement("br"));
+        }
+        
+        return tileDiv;
+    }
+
+    public static drawTiles(): void {
+        let farmlandContainer = document.getElementById("farmlandContainer");
+        farmlandContainer?.appendChild(Game.generateTilesDiv());
+    }
+
+    public static setTile(id: number, tile: Tile): void {
+        let index = Game.tiles.findIndex(t => t.id == id);
+        Game.tiles[index].onRemove();
+        Game.tiles[index].domObject.replaceWith(tile.domObject);
+        Game.tiles[index] = tile;
+    }
+}
+
+//TODO Change in class with names and ids so I can even save some other property
+enum Season {
+    SUMMER,
+    AUTUMN,
+    WINTER,
+    SPRING
+}
+
+abstract class Tile {
+    id: number;
     domObject: HTMLDivElement;
+
+    constructor(id: number, type: string) {
+        this.id = id;
+        let domObject: HTMLDivElement = document.createElement("div");
+        domObject.classList.add("tile");
+        domObject.classList.add(type);
+        domObject.id = `tile${id}`;
+        domObject.addEventListener("click", () => {
+            Game.onTileClick(this);
+        })
+        this.domObject = domObject;
+    }
+
+    public tick(): void {
+        
+    }
+
+    public onClick(item: Item | null): void {
+    }
+
+    public onRemove(): void {
+    }
+}
+
+class FarmlandTile extends Tile {
     tilled: boolean = false;
+    fertilizingPower: number = 0;
     planted: Plant | null = null;
 
     constructor(id: number) {
-        let domObject: HTMLDivElement = document.createElement("div");
-        domObject.classList.add("farmland");
-        domObject.id = `cell${id}`;
-        domObject.addEventListener("click", () => {
-            if (Game.selectedItem != null) {
-                Game.selectedItem.onTileClick(this);
+        super(id, "farmland");
+    }
+
+    public override tick(): void {
+        if (this.planted != null) {
+            if (this.planted.timeToGrown > 0) {
+                this.planted.timeToGrown -= 0.1;
+                if (this.fertilizingPower > 0)
+                    this.planted.timeToGrown -= 0.1 * this.fertilizingPower;
+                if (this.planted.timeToGrown <= 0) {
+                    this.domObject.innerHTML = `${this.planted.plantType.id} (grown)`;
+                }
+                else {
+                    this.domObject.innerHTML = `${this.planted.plantType.id} (${Math.ceil(this.planted.timeToGrown).toFixed(0)})`;
+                }
             }
-            else if (this.planted != null) {
-                this.harvest();
+        }
+    }
+
+    public override onClick(item: Item | null): void {
+        if (item instanceof HoeItem) {
+            if (!this.tilled) {
+                this.till();
             }
-        })
-        this.domObject = domObject;
-        Game.Farmlands.push(this);
+            else {
+                Game.log("The tile is already tilled");
+            }
+        }
+        else if (item instanceof PlantItem) {
+            if (this.tilled && this.planted == null) {
+                this.planted = new Plant(Game.selectedItem as PlantItem);
+                this.domObject.innerHTML = this.planted.plantType.id;
+            }
+            else if (this.planted == null) {
+                Game.log("You must till the dirt before planting");
+            }
+        }
+        else {
+            this.harvest();
+        }
     }
 
     till() {
@@ -41,27 +236,25 @@ class Farmland {
         this.planted = null;
         this.domObject.innerHTML = "";
     }
+}
 
-    tick() {
-        if (this.planted != null) {
-            if (this.planted.timeToGrown > 0) {
-                this.planted.timeToGrown -= 0.1;
-                if (this.planted.timeToGrown <= 0) {
-                    this.domObject.innerHTML = `${this.planted.plantType.id} (grown)`;
-                }
-                else {
-                    this.domObject.innerHTML = `${this.planted.plantType.id} (${Math.ceil(this.planted.timeToGrown).toFixed(0)})`;
-                }
-            }
+class StoneTile extends Tile {
+    constructor(id: number) {
+        super(id, "stone");
+    }
+
+    public override onClick(item: Item | null): void {
+        if (item instanceof HoeItem) {
+            Game.setTile(this.id, new FarmlandTile(this.id));
         }
     }
 }
 
 class Plant {
     timeToGrown: number;
-    plantType: PlantType;
+    plantType: PlantItem;
 
-    constructor(plantType: PlantType) {
+    constructor(plantType: PlantItem) {
         this.plantType = plantType;
         this.timeToGrown = plantType.timeToGrow;
     }
@@ -96,8 +289,8 @@ class Item {
         this.domObject = domObject;
     }
 
-    public onTileClick(tile: Farmland): void {
-        
+    public onTileClick(tile: Tile): void {
+        tile.onClick(this);
     }
 }
 
@@ -105,23 +298,9 @@ class HoeItem extends Item {
     constructor() {
         super("Hoe");
     }
-
-    public override onTileClick(tile: Farmland): void {
-        //if (tile.getType() == TileType.Farmland) {
-        if (!tile.tilled) {
-            tile.till();
-        }
-        else {
-            Game.log("The tile is already tilled");
-        }
-        //}
-        //else {
-
-        //}
-    }
 }
 
-class PlantType extends Item {
+class PlantItem extends Item {
     timeToGrow: number;
 
     constructor(id: string, timeToGrow: number) {
@@ -129,33 +308,20 @@ class PlantType extends Item {
         this.timeToGrow = timeToGrow;
     }
 
-    public override onTileClick(tile: Farmland): void {
-        //if (tile.getType() == TileType.Farmland) {
-        if (tile.tilled) {
-            if (tile.planted == null) {
-                tile.planted = new Plant(Game.selectedItem as PlantType);
-                tile.domObject.innerHTML = tile.planted.plantType.id;
-            }
-        }
-        else {
-            Game.log("You must till the dirt before planting");
-        }
-        //}
-        //else {
-
-        //}
+    public override onTileClick(tile: FarmlandTile): void {
+        
     }
 }
 
 class PlantTypes {
-    static List: Array<PlantType> = new Array<PlantType>();
+    static List: Array<PlantItem> = new Array<PlantItem>();
 
-    static POPPY: PlantType = PlantTypes.registerPlantType("Poppy", 7);
-    static DANDELION: PlantType = PlantTypes.registerPlantType("Dandelion", 10);
-    static WHEAT: PlantType = PlantTypes.registerPlantType("Wheat", 20);
+    static POPPY: PlantItem = PlantTypes.registerPlantType("Poppy", 7);
+    static DANDELION: PlantItem = PlantTypes.registerPlantType("Dandelion", 10);
+    static WHEAT: PlantItem = PlantTypes.registerPlantType("Wheat", 20);
 
-    public static registerPlantType(id: string, timeToGrow: number): PlantType {
-        let plantType: PlantType = new PlantType(id, timeToGrow);
+    public static registerPlantType(id: string, timeToGrow: number): PlantItem {
+        let plantType: PlantItem = new PlantItem(id, timeToGrow);
         PlantTypes.List.push(plantType);
         return plantType;
     }
@@ -172,89 +338,5 @@ class Items {
     public static registerItem(item: Item): Item {
         Items.List.push(item);
         return item;
-    }
-}
-
-class Game {
-    static Farmlands: Array<Farmland> = new Array<Farmland>();
-    static selectedItem: Item | null;
-    static timer: number;
-    static inventory = new Map<PlantType, number>();
-
-    public static init() {
-        let itemsContainer = document.getElementById("itemsContainer");
-        itemsContainer?.appendChild(Game.generateItemsList());
-        let farmlandContainer = document.getElementById("farmlandContainer");
-        farmlandContainer?.appendChild(Game.generateFarmlandDiv(3, 3));
-
-        Game.logDomObject = document.getElementById("logContainer");
-        Game.inventoryDomObject = document.getElementById("inventoryContainer");
-
-        window.setInterval(Game.tick, 100);
-    }
-
-    public static tick() {
-        Game.Farmlands.forEach(farmland => {
-            farmland.tick();
-        });
-    }
-
-    public static addToInventory(plantType: PlantType) {
-        Game.inventory.set(plantType, (Game.inventory.get(plantType) ?? 0) + 1);
-        Game.updateInventoryDisplay();
-    }
-
-    static inventoryDomObject: HTMLElement | null;
-
-    public static updateInventoryDisplay() {
-        Game.inventoryDomObject!.innerHTML = "";
-        for (let entry of Game.inventory.entries()) {
-            Game.inventoryDomObject!.innerHTML += `${entry[0].id}: ${entry[1]}<br />`;
-        }
-    }
-
-    static logDomObject: HTMLElement | null;
-
-    public static log(s: string) {
-        if (Game.logDomObject != null)
-            Game.logDomObject.innerHTML += s + "<br />";
-    }
-
-    private static generateFarmlandDiv(width: number, height: number): HTMLDivElement {
-        let farmlandDiv: HTMLDivElement = document.createElement("div");
-        farmlandDiv.style.display = "table";
-        farmlandDiv.style.margin = "0 auto";
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                if (Math.random() < 0.3) {
-                    let fl: Farmland = new Farmland(y * width + x);
-                    farmlandDiv.appendChild(fl.domObject);
-                }
-                else {
-                    let domObject: HTMLDivElement = document.createElement("div");
-                    domObject.classList.add("empty-tile");
-                    //domObject.id = `cell${id}`;
-                    farmlandDiv.appendChild(domObject);
-                }
-            }
-            farmlandDiv.appendChild(document.createElement("br"));
-        }
-        return farmlandDiv;
-    }
-    
-    private static generateItemsList(): HTMLDivElement {
-        let itemsDiv: HTMLDivElement = document.createElement("div");
-        itemsDiv.style.display = "table";
-        itemsDiv.style.margin = "0 auto";
-        Items.List.forEach(item => {
-            itemsDiv.appendChild(item.domObject);
-        });
-        itemsDiv.appendChild(document.createElement("br"));
-        itemsDiv.appendChild(document.createElement("br"));
-        PlantTypes.List.forEach(plantType => {
-            itemsDiv.appendChild(plantType.domObject);
-            itemsDiv.appendChild(document.createElement("br"));
-        });
-        return itemsDiv;
     }
 }

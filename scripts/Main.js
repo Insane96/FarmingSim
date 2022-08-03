@@ -7,23 +7,182 @@
 window.addEventListener('load', function () {
     Game.init();
 });
-class Farmland {
-    constructor(id) {
-        this.tilled = false;
-        this.planted = null;
+class Game {
+    static init() {
+        let itemsContainer = document.getElementById("itemsContainer");
+        itemsContainer === null || itemsContainer === void 0 ? void 0 : itemsContainer.appendChild(Game.generateItemsList());
+        Game.logDomObject = document.getElementById("logContainer");
+        Game.inventoryDomObject = document.getElementById("inventoryContainer");
+        Game.infoDomObject = document.getElementById("infoContainer");
+        Game.generateTiles();
+        Game.drawTiles();
+        Game.season = Season.SUMMER;
+        Game.seasonTimer = Game.SEASON_DURATION;
+        window.setInterval(Game.tick, 100);
+    }
+    static tick() {
+        if (Game.seasonTimer-- <= 0) {
+            Game.advanceSeason();
+        }
+        Game.infoDomObject.innerHTML = `Season: ${Season[Game.season]} (${Game.seasonTimer})`;
+        Game.tiles.forEach(tile => {
+            tile.tick();
+        });
+    }
+    static advanceSeason() {
+        Game.season++;
+        Game.seasonTimer = Game.SEASON_DURATION;
+    }
+    static addToInventory(plantType) {
+        var _a;
+        Game.inventory.set(plantType, ((_a = Game.inventory.get(plantType)) !== null && _a !== void 0 ? _a : 0) + 1);
+        Game.updateInventoryDisplay();
+    }
+    static updateInventoryDisplay() {
+        Game.inventoryDomObject.innerHTML = "";
+        for (let entry of Game.inventory.entries()) {
+            Game.inventoryDomObject.innerHTML += `${entry[0].id}: ${entry[1]}<br />`;
+        }
+    }
+    static log(s) {
+        if (Game.logDomObject != null) {
+            Game.logDomObject.innerHTML += s + "<br />";
+            Game.logRows++;
+        }
+    }
+    static generateItemsList() {
+        let itemsDiv = document.createElement("div");
+        itemsDiv.style.display = "table";
+        itemsDiv.style.margin = "0 auto";
+        Items.List.forEach(item => {
+            itemsDiv.appendChild(item.domObject);
+        });
+        itemsDiv.appendChild(document.createElement("br"));
+        itemsDiv.appendChild(document.createElement("br"));
+        PlantTypes.List.forEach(plantType => {
+            itemsDiv.appendChild(plantType.domObject);
+            itemsDiv.appendChild(document.createElement("br"));
+        });
+        return itemsDiv;
+    }
+    static onTileClick(tile) {
+        tile.onClick(Game.selectedItem);
+    }
+    static generateTiles() {
+        for (let y = 0; y < this.tilesHeight; y++) {
+            for (let x = 0; x < this.tilesWidth; x++) {
+                let tile;
+                if (Math.random() < 0.4) {
+                    tile = new FarmlandTile(y * this.tilesWidth + x);
+                }
+                else {
+                    tile = new StoneTile(y * this.tilesWidth + x);
+                }
+                //tileDiv.appendChild(tile.domObject);
+                Game.tiles.push(tile);
+            }
+            //tileDiv.appendChild(document.createElement("br"));
+        }
+    }
+    static generateTilesDiv() {
+        let tileDiv = document.createElement("div");
+        tileDiv.style.display = "table";
+        tileDiv.style.margin = "0 auto";
+        for (let y = 0; y < this.tilesHeight; y++) {
+            for (let x = 0; x < this.tilesWidth; x++) {
+                tileDiv.appendChild(Game.tiles[y * this.tilesWidth + x].domObject);
+            }
+            tileDiv.appendChild(document.createElement("br"));
+        }
+        return tileDiv;
+    }
+    static drawTiles() {
+        let farmlandContainer = document.getElementById("farmlandContainer");
+        farmlandContainer === null || farmlandContainer === void 0 ? void 0 : farmlandContainer.appendChild(Game.generateTilesDiv());
+    }
+    static setTile(id, tile) {
+        let index = Game.tiles.findIndex(t => t.id == id);
+        Game.tiles[index].onRemove();
+        Game.tiles[index].domObject.replaceWith(tile.domObject);
+        Game.tiles[index] = tile;
+    }
+}
+Game.tiles = new Array();
+Game.tilesWidth = 3;
+Game.tilesHeight = 2;
+Game.inventory = new Map();
+Game.SEASON_DURATION = 600;
+Game.logRows = 0;
+//TODO Change in class with names and ids so I can even save some other property
+var Season;
+(function (Season) {
+    Season[Season["SUMMER"] = 0] = "SUMMER";
+    Season[Season["AUTUMN"] = 1] = "AUTUMN";
+    Season[Season["WINTER"] = 2] = "WINTER";
+    Season[Season["SPRING"] = 3] = "SPRING";
+})(Season || (Season = {}));
+class Tile {
+    constructor(id, type) {
+        this.id = id;
         let domObject = document.createElement("div");
-        domObject.classList.add("farmland");
-        domObject.id = `cell${id}`;
+        domObject.classList.add("tile");
+        domObject.classList.add(type);
+        domObject.id = `tile${id}`;
         domObject.addEventListener("click", () => {
-            if (Game.selectedItem != null) {
-                Game.selectedItem.onTileClick(this);
-            }
-            else if (this.planted != null) {
-                this.harvest();
-            }
+            Game.onTileClick(this);
         });
         this.domObject = domObject;
-        Game.Farmlands.push(this);
+    }
+    tick() {
+    }
+    onClick(item) {
+    }
+    onRemove() {
+    }
+}
+class FarmlandTile extends Tile {
+    constructor(id) {
+        super(id, "farmland");
+        this.tilled = false;
+        this.fertilizingPower = 0;
+        this.planted = null;
+    }
+    tick() {
+        if (this.planted != null) {
+            if (this.planted.timeToGrown > 0) {
+                this.planted.timeToGrown -= 0.1;
+                if (this.fertilizingPower > 0)
+                    this.planted.timeToGrown -= 0.1 * this.fertilizingPower;
+                if (this.planted.timeToGrown <= 0) {
+                    this.domObject.innerHTML = `${this.planted.plantType.id} (grown)`;
+                }
+                else {
+                    this.domObject.innerHTML = `${this.planted.plantType.id} (${Math.ceil(this.planted.timeToGrown).toFixed(0)})`;
+                }
+            }
+        }
+    }
+    onClick(item) {
+        if (item instanceof HoeItem) {
+            if (!this.tilled) {
+                this.till();
+            }
+            else {
+                Game.log("The tile is already tilled");
+            }
+        }
+        else if (item instanceof PlantItem) {
+            if (this.tilled && this.planted == null) {
+                this.planted = new Plant(Game.selectedItem);
+                this.domObject.innerHTML = this.planted.plantType.id;
+            }
+            else if (this.planted == null) {
+                Game.log("You must till the dirt before planting");
+            }
+        }
+        else {
+            this.harvest();
+        }
     }
     till() {
         this.tilled = true;
@@ -36,17 +195,14 @@ class Farmland {
         this.planted = null;
         this.domObject.innerHTML = "";
     }
-    tick() {
-        if (this.planted != null) {
-            if (this.planted.timeToGrown > 0) {
-                this.planted.timeToGrown -= 0.1;
-                if (this.planted.timeToGrown <= 0) {
-                    this.domObject.innerHTML = `${this.planted.plantType.id} (grown)`;
-                }
-                else {
-                    this.domObject.innerHTML = `${this.planted.plantType.id} (${Math.ceil(this.planted.timeToGrown).toFixed(0)})`;
-                }
-            }
+}
+class StoneTile extends Tile {
+    constructor(id) {
+        super(id, "stone");
+    }
+    onClick(item) {
+        if (item instanceof HoeItem) {
+            Game.setTile(this.id, new FarmlandTile(this.id));
         }
     }
 }
@@ -81,49 +237,25 @@ class Item {
         this.domObject = domObject;
     }
     onTileClick(tile) {
+        tile.onClick(this);
     }
 }
 class HoeItem extends Item {
     constructor() {
         super("Hoe");
     }
-    onTileClick(tile) {
-        //if (tile.getType() == TileType.Farmland) {
-        if (!tile.tilled) {
-            tile.till();
-        }
-        else {
-            Game.log("The tile is already tilled");
-        }
-        //}
-        //else {
-        //}
-    }
 }
-class PlantType extends Item {
+class PlantItem extends Item {
     constructor(id, timeToGrow) {
         super(id, "plant-type");
         this.timeToGrow = timeToGrow;
     }
     onTileClick(tile) {
-        //if (tile.getType() == TileType.Farmland) {
-        if (tile.tilled) {
-            if (tile.planted == null) {
-                tile.planted = new Plant(Game.selectedItem);
-                tile.domObject.innerHTML = tile.planted.plantType.id;
-            }
-        }
-        else {
-            Game.log("You must till the dirt before planting");
-        }
-        //}
-        //else {
-        //}
     }
 }
 class PlantTypes {
     static registerPlantType(id, timeToGrow) {
-        let plantType = new PlantType(id, timeToGrow);
+        let plantType = new PlantItem(id, timeToGrow);
         PlantTypes.List.push(plantType);
         return plantType;
     }
@@ -143,72 +275,3 @@ Items.HOE = Items.registerItem(new HoeItem());
 //static SCYTHE: Item = Items.registerItem("Scythe");
 Items.PICK = Items.registerItem(new Item("Pick"));
 Items.WATERING_CAN = Items.registerItem(new Item("Watering Can"));
-class Game {
-    static init() {
-        let itemsContainer = document.getElementById("itemsContainer");
-        itemsContainer === null || itemsContainer === void 0 ? void 0 : itemsContainer.appendChild(Game.generateItemsList());
-        let farmlandContainer = document.getElementById("farmlandContainer");
-        farmlandContainer === null || farmlandContainer === void 0 ? void 0 : farmlandContainer.appendChild(Game.generateFarmlandDiv(3, 3));
-        Game.logDomObject = document.getElementById("logContainer");
-        Game.inventoryDomObject = document.getElementById("inventoryContainer");
-        window.setInterval(Game.tick, 100);
-    }
-    static tick() {
-        Game.Farmlands.forEach(farmland => {
-            farmland.tick();
-        });
-    }
-    static addToInventory(plantType) {
-        var _a;
-        Game.inventory.set(plantType, ((_a = Game.inventory.get(plantType)) !== null && _a !== void 0 ? _a : 0) + 1);
-        Game.updateInventoryDisplay();
-    }
-    static updateInventoryDisplay() {
-        Game.inventoryDomObject.innerHTML = "";
-        for (let entry of Game.inventory.entries()) {
-            Game.inventoryDomObject.innerHTML += `${entry[0].id}: ${entry[1]}<br />`;
-        }
-    }
-    static log(s) {
-        if (Game.logDomObject != null)
-            Game.logDomObject.innerHTML += s + "<br />";
-    }
-    static generateFarmlandDiv(width, height) {
-        let farmlandDiv = document.createElement("div");
-        farmlandDiv.style.display = "table";
-        farmlandDiv.style.margin = "0 auto";
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                if (Math.random() < 0.3) {
-                    let fl = new Farmland(y * width + x);
-                    farmlandDiv.appendChild(fl.domObject);
-                }
-                else {
-                    let domObject = document.createElement("div");
-                    domObject.classList.add("empty-tile");
-                    //domObject.id = `cell${id}`;
-                    farmlandDiv.appendChild(domObject);
-                }
-            }
-            farmlandDiv.appendChild(document.createElement("br"));
-        }
-        return farmlandDiv;
-    }
-    static generateItemsList() {
-        let itemsDiv = document.createElement("div");
-        itemsDiv.style.display = "table";
-        itemsDiv.style.margin = "0 auto";
-        Items.List.forEach(item => {
-            itemsDiv.appendChild(item.domObject);
-        });
-        itemsDiv.appendChild(document.createElement("br"));
-        itemsDiv.appendChild(document.createElement("br"));
-        PlantTypes.List.forEach(plantType => {
-            itemsDiv.appendChild(plantType.domObject);
-            itemsDiv.appendChild(document.createElement("br"));
-        });
-        return itemsDiv;
-    }
-}
-Game.Farmlands = new Array();
-Game.inventory = new Map();
