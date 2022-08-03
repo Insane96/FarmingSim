@@ -40,15 +40,36 @@
     background-color: rgb(90, 42, 11);
 }
 
-.plant-type {
+.item {
     width: 50px;
     height: 50px;
-    background-color: rgb(189, 173, 31);
+    background-color: hsl(34, 72%, 43%);
     display: inline-block;
     vertical-align: top;
     border: 2px solid rgb(0, 0, 0);
     margin: -1px;
     border-radius: 4px;
+}
+
+.item:hover {
+    background-color: hsl(34, 71%, 36%);
+}
+
+.item:active {
+    background-color: hsla(34, 72%, 43%, 0.7);
+}
+
+.item-selected {
+    background-color: hsl(34, 39%, 61%);
+    border: 4px solid rgb(0, 0, 0);
+}
+
+.item-selected:hover {
+    background-color: hsl(34, 24%, 49%);
+}
+
+.plant-type {
+    background-color: rgb(189, 173, 31);
 }
 
 .plant-type:hover {
@@ -59,13 +80,18 @@
     background-color: rgb(156, 143, 26);
 }
 
-.plant-type-selected {
-    background-color: rgb(194, 186, 116);
-    border: 4px solid rgb(0, 0, 0);
+.plant-type.item-selected {
+    background-color: hsl(54, 39%, 61%);
 }
 
-.plant-type-selected:hover {
+.plant-type.item-selected:hover {
     background-color: rgb(148, 142, 89);
+}
+
+.center-all {
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .main-container tr td {
