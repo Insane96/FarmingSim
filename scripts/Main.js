@@ -11,7 +11,7 @@ window.addEventListener('load', function () {
 class Game {
     static init() {
         let itemsContainer = document.getElementById("itemsContainer");
-        itemsContainer === null || itemsContainer === void 0 ? void 0 : itemsContainer.appendChild(Game.generateItemsList());
+        itemsContainer.appendChild(Game.generateItemsList());
         Game.logDomObject = document.getElementById("logContainer");
         Game.inventoryDomObject = document.getElementById("inventoryContainer");
         Game.infoDomObject = document.getElementById("infoContainer");
@@ -180,12 +180,9 @@ class Tile {
         });
         this.domObject = domObject;
     }
-    tick() {
-    }
-    onClick(item) {
-    }
-    onRemove() {
-    }
+    tick() { }
+    onClick(item) { }
+    onRemove() { }
 }
 class FarmlandTile extends Tile {
     constructor(id) {
@@ -197,9 +194,9 @@ class FarmlandTile extends Tile {
     tick() {
         if (this.planted != null) {
             if (this.planted.timeToGrown > 0) {
-                this.planted.timeToGrown -= 0.1;
+                this.planted.timeToGrown -= 1;
                 if (this.fertilizingPower > 0)
-                    this.planted.timeToGrown -= 0.1 * this.fertilizingPower;
+                    this.planted.timeToGrown -= this.fertilizingPower;
                 if (this.planted.timeToGrown <= 0) {
                     this.domObject.innerHTML = `${this.planted.plantType.id} (grown)`;
                 }
@@ -228,7 +225,8 @@ class FarmlandTile extends Tile {
             }
         }
         else {
-            this.harvest();
+            if (this.tilled && this.planted != null)
+                this.harvest();
         }
     }
     till() {
@@ -308,9 +306,9 @@ class PlantTypes {
     }
 }
 PlantTypes.List = new Array();
-PlantTypes.POPPY = PlantTypes.registerPlantType("Poppy", 7);
-PlantTypes.DANDELION = PlantTypes.registerPlantType("Dandelion", 10);
-PlantTypes.WHEAT = PlantTypes.registerPlantType("Wheat", 20);
+PlantTypes.POPPY = PlantTypes.registerPlantType("Poppy", 70);
+PlantTypes.DANDELION = PlantTypes.registerPlantType("Dandelion", 100);
+PlantTypes.WHEAT = PlantTypes.registerPlantType("Wheat", 200);
 class Items {
     static registerItem(item) {
         Items.List.push(item);

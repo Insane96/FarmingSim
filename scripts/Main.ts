@@ -27,7 +27,7 @@ class Game {
 
     public static init() {
         let itemsContainer = document.getElementById("itemsContainer");
-        itemsContainer?.appendChild(Game.generateItemsList());
+        itemsContainer!.appendChild(Game.generateItemsList());
 
         Game.logDomObject = document.getElementById("logContainer");
         Game.inventoryDomObject = document.getElementById("inventoryContainer");
@@ -243,15 +243,11 @@ abstract class Tile {
         this.domObject = domObject;
     }
 
-    public tick(): void {
-        
-    }
+    public tick(): void { }
 
-    public onClick(item: Item | null): void {
-    }
+    public onClick(item: Item | null): void { }
 
-    public onRemove(): void {
-    }
+    public onRemove(): void { }
 }
 
 class FarmlandTile extends Tile {
@@ -266,9 +262,9 @@ class FarmlandTile extends Tile {
     public override tick(): void {
         if (this.planted != null) {
             if (this.planted.timeToGrown > 0) {
-                this.planted.timeToGrown -= 0.1;
+                this.planted.timeToGrown -= 1;
                 if (this.fertilizingPower > 0)
-                    this.planted.timeToGrown -= 0.1 * this.fertilizingPower;
+                    this.planted.timeToGrown -= this.fertilizingPower;
                 if (this.planted.timeToGrown <= 0) {
                     this.domObject.innerHTML = `${this.planted.plantType.id} (grown)`;
                 }
@@ -298,7 +294,8 @@ class FarmlandTile extends Tile {
             }
         }
         else {
-            this.harvest();
+            if (this.tilled && this.planted != null)
+                this.harvest();
         }
     }
 
@@ -394,9 +391,9 @@ class PlantItem extends Item {
 class PlantTypes {
     static List: Array<PlantItem> = new Array<PlantItem>();
 
-    static POPPY: PlantItem = PlantTypes.registerPlantType("Poppy", 7);
-    static DANDELION: PlantItem = PlantTypes.registerPlantType("Dandelion", 10);
-    static WHEAT: PlantItem = PlantTypes.registerPlantType("Wheat", 20);
+    static POPPY: PlantItem = PlantTypes.registerPlantType("Poppy", 70);
+    static DANDELION: PlantItem = PlantTypes.registerPlantType("Dandelion", 100);
+    static WHEAT: PlantItem = PlantTypes.registerPlantType("Wheat", 200);
 
     public static registerPlantType(id: string, timeToGrow: number): PlantItem {
         let plantType: PlantItem = new PlantItem(id, timeToGrow);
