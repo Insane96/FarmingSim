@@ -5,10 +5,13 @@
 //Seasons?
 
 window.addEventListener('load', function () {
-    Game.init();
+    //if (this.location.hostname.match("insane96.eu"))
+        Game.init();
 });
 
 class Game {
+    static globalTick: number = 0;
+
     static tiles: Array<Tile> = new Array<Tile>();
     static tilesWidth: number = 3;
     static tilesHeight: number = 2;
@@ -18,9 +21,9 @@ class Game {
 
     static infoDomObject: HTMLElement | null;
 
+    static Infos: Array<Info> = new Array<Info>();
+
     static season: Season;
-    static seasonTimer: number;
-    static readonly SEASON_DURATION: number = 600;
 
     public static init() {
         let itemsContainer = document.getElementById("itemsContainer");
@@ -32,25 +35,27 @@ class Game {
 
         Game.generateTiles();
         Game.drawTiles();
-        Game.season = Season.SUMMER;
-        Game.seasonTimer = Game.SEASON_DURATION;
+
+        Season.init();
 
         window.setInterval(Game.tick, 100);
     }
 
     public static tick() {
-        if (Game.seasonTimer-- <= 0) {
-            Game.advanceSeason();
-        }
-        Game.infoDomObject!.innerHTML = `Season: ${Season[Game.season]} (${Game.seasonTimer})`;
+        Game.globalTick++;
+        Season.tick();
+        Game.updateInfos();
         Game.tiles.forEach(tile => {
             tile.tick();
         });
     }
 
-    public static advanceSeason() {
-        Game.season++;
-        Game.seasonTimer = Game.SEASON_DURATION;
+    public static updateInfos() {
+        let s: string = "";
+        Game.Infos.forEach(info => {
+            s += info.onTick() + "<br />";
+        });
+        Game.infoDomObject!.innerHTML = s;
     }
 
     public static addToInventory(plantType: PlantItem) {
@@ -141,12 +146,85 @@ class Game {
     }
 }
 
-//TODO Change in class with names and ids so I can even save some other property
-enum Season {
-    SUMMER,
-    AUTUMN,
-    WINTER,
-    SPRING
+class Season {
+    id: string;
+
+    static readonly SEASONS: Array<Season> = new Array<Season>();
+
+    static readonly SUMMER: Season = Season.registerSeason("Summer");
+    static readonly AUTUMN: Season = Season.registerSeason("Autumn");
+    static readonly WINTER: Season = Season.registerSeason("Winter");
+    static readonly SPRING: Season = Season.registerSeason("Spring");
+    
+    static readonly SEASON_DURATON = 6000;
+
+    static current: Season;
+    static timer: number = 0;
+
+    constructor(id: string) {
+        this.id = id;
+    }
+
+    static init() {
+        Season.current = Season.SUMMER;
+        Season.timer = Season.SEASON_DURATON;
+        Game.Infos.push(new Info("season", 10, () => `Season: ${Season.current.id} (${Season.timer})`));
+    }
+
+    static tick() {
+        if (--Season.timer <= 0) {
+            Season.advanceSeason();
+        }
+    }
+
+    static advanceSeason() {
+        let index: number = Season.SEASONS.findIndex(s => Season.current.id == s.id);
+        if (++index > Season.SEASONS.length - 1)
+            index = 0;
+        Season.current = Season.SEASONS[index];
+        Season.timer = Season.SEASON_DURATON;
+    }
+
+    static registerSeason(id: string): Season {
+        let s: Season = new Season(id);
+        Season.SEASONS.push(s);
+        return s;
+    }
+}
+
+class Info {
+    id: string;
+    /**
+     * Every how many ticks is the info updated. Set to 0 to update manually
+     */
+    updateFrequency: number;
+    /**
+     * Function that returns the string to add to the info box
+     */
+    func: () => string;
+    /**
+     * cached string to return when the string is not updated
+     */
+    cached: string;
+
+    constructor(id: string, updateFrequency: number, func: () => string) {
+        this.id = id;
+        this.updateFrequency = updateFrequency;
+        this.func = func;
+        this.cached = "";
+        this.onTick();
+    }
+
+    public onTick(): string {
+        if (this.updateFrequency > 0 && Game.globalTick % this.updateFrequency == 0) {
+            this.update();
+        }
+        return this.cached;
+    }
+
+    public update() {
+        this.cached = this.func();
+    }
 }
 
 abstract class Tile {

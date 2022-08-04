@@ -5,6 +5,7 @@
 //Make plants require water, first manually, then automatable with sprinklers
 //Seasons?
 window.addEventListener('load', function () {
+    //if (this.location.hostname.match("insane96.eu"))
     Game.init();
 });
 class Game {
@@ -16,22 +17,23 @@ class Game {
         Game.infoDomObject = document.getElementById("infoContainer");
         Game.generateTiles();
         Game.drawTiles();
-        Game.season = Season.SUMMER;
-        Game.seasonTimer = Game.SEASON_DURATION;
+        Season.init();
         window.setInterval(Game.tick, 100);
     }
     static tick() {
-        if (Game.seasonTimer-- <= 0) {
-            Game.advanceSeason();
-        }
-        Game.infoDomObject.innerHTML = `Season: ${Season[Game.season]} (${Game.seasonTimer})`;
+        Game.globalTick++;
+        Season.tick();
+        Game.updateInfos();
         Game.tiles.forEach(tile => {
             tile.tick();
         });
     }
-    static advanceSeason() {
-        Game.season++;
-        Game.seasonTimer = Game.SEASON_DURATION;
+    static updateInfos() {
+        let s = "";
+        Game.Infos.forEach(info => {
+            s += info.onTick() + "<br />";
+        });
+        Game.infoDomObject.innerHTML = s;
     }
     static addToInventory(plantType) {
         var _a;
@@ -107,20 +109,65 @@ class Game {
         Game.tiles[index] = tile;
     }
 }
+Game.globalTick = 0;
 Game.tiles = new Array();
 Game.tilesWidth = 3;
 Game.tilesHeight = 2;
 Game.inventory = new Map();
-Game.SEASON_DURATION = 600;
+Game.Infos = new Array();
 Game.logRows = 0;
-//TODO Change in class with names and ids so I can even save some other property
-var Season;
-(function (Season) {
-    Season[Season["SUMMER"] = 0] = "SUMMER";
-    Season[Season["AUTUMN"] = 1] = "AUTUMN";
-    Season[Season["WINTER"] = 2] = "WINTER";
-    Season[Season["SPRING"] = 3] = "SPRING";
-})(Season || (Season = {}));
+class Season {
+    constructor(id) {
+        this.id = id;
+    }
+    static init() {
+        Season.current = Season.SUMMER;
+        Season.timer = Season.SEASON_DURATON;
+        Game.Infos.push(new Info("season", 10, () => `Season: ${Season.current.id} (${Season.timer})`));
+    }
+    static tick() {
+        if (--Season.timer <= 0) {
+            Season.advanceSeason();
+        }
+    }
+    static advanceSeason() {
+        let index = Season.SEASONS.findIndex(s => Season.current.id == s.id);
+        if (++index > Season.SEASONS.length - 1)
+            index = 0;
+        Season.current = Season.SEASONS[index];
+        Season.timer = Season.SEASON_DURATON;
+    }
+    static registerSeason(id) {
+        let s = new Season(id);
+        Season.SEASONS.push(s);
+        return s;
+    }
+}
+Season.SEASONS = new Array();
+Season.SUMMER = Season.registerSeason("Summer");
+Season.AUTUMN = Season.registerSeason("Autumn");
+Season.WINTER = Season.registerSeason("Winter");
+Season.SPRING = Season.registerSeason("Spring");
+Season.SEASON_DURATON = 6000;
+Season.timer = 0;
+class Info {
+    constructor(id, updateFrequency, func) {
+        this.id = id;
+        this.updateFrequency = updateFrequency;
+        this.func = func;
+        this.cached = "";
+        this.onTick();
+    }
+    onTick() {
+        if (this.updateFrequency > 0 && Game.globalTick % this.updateFrequency == 0) {
+            this.update();
+        }
+        return this.cached;
+    }
+    update() {
+        this.cached = this.func();
+    }
+}
 class Tile {
     constructor(id, type) {
         this.id = id;
